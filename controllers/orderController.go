@@ -1,139 +1,94 @@
 package controllers
 
 import (
+	"Assigment2/config"
 	"Assigment2/structs"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
-//to find product
-// func (idb *InDB) GetOrder(c *gin.Context) {
-
-// 	var (
-// 		orders structs.Orders
-// 		items  structs.Items
-
-// 		result gin.H
-// 	)
-
-// 	id := c.Param("id") //digunakan untuk get
-// 	var x = db.Model(&items).Select("*").Joins("left join orders on orders.order_id = items.order_id").Scan(&result{})
-
-// 	var err = idb.DB.Where("Order_id = ?", id).First(&orders).Error
-
-// 	if err != nil {
-// 		result = gin.H{
-// 			"result": err.Error(),
-// 			"count":  0,
-// 		}
-// 	} else {
-// 		result = gin.H{
-// 			"result": orders,
-// 			"count":  1,
-// 		}
-// 	}
-// 	c.JSON(http.StatusOK, result)
-
-// }
-
-//createproduct
-func (idb *InDB) CreateOrder(c *gin.Context) {
-
+func GetCurrentOrderById(c *gin.Context) {
 	var (
-		order  structs.Orders
-		item   structs.Items
-		result gin.H
+		id    = c.Params.ByName("id")
+		order []structs.Order
 	)
 
-	// id := c.PostForm("Id")
-	customername := c.PostForm("costumer_name")
-	description := c.PostForm("description")
-	item_code := c.PostForm("item_code")
-	quantity := c.PostForm("quantity")
-
-	order.Customer_name = customername
-	item.Description = description
-	item.Item_code, _ = strconv.Atoi(item_code)
-	item.Quantity, _ = strconv.Atoi(quantity)
-
-	idb.DB.Create(&order)
-	idb.DB.Create(&item)
-
-	result = gin.H{
-		"result": order,
-		"item":   item,
+	if err := config.DB.Preload("Items").First(&order, id).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Record not found!"})
+		return
 	}
-	c.JSON(http.StatusOK, result)
+
+	c.JSON(http.StatusOK, order)
+
+}
+
+func CreateOrder(c *gin.Context) {
+
+	var (
+		order structs.Order
+	)
+
+	c.ShouldBindJSON(&order)
+
+	if err := config.DB.Create(&order).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error Item": "Record can't create!",
+		})
+	}
+
+	c.JSON(http.StatusOK, order)
 }
 
 //update
-func (idb *InDB) UpdateOrder(c *gin.Context) {
 
+func UpdateOrder(c *gin.Context) {
 	id := c.Params.ByName("id")
-	customername := c.PostForm("costumer_name")
-	description := c.PostForm("description")
-	item_code := c.PostForm("item_code")
-	quantity := c.PostForm("quantity")
 
 	var (
-		order    structs.Orders
-		newOrder structs.Orders
-		item     structs.Items
-		newItem  structs.Items
-
-		result gin.H
+		order structs.Order
+		// status structs.Status
 	)
 
-	err := idb.DB.First(&item, id).Error
-	if err != nil {
-		result = gin.H{
-			"result": "data not found",
-		}
+	// if err := config.DB.Select("status_id").Where("statusname = ?", "Updated").First(&status).Error; err != nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "Record not found!"})
+	// 	return
+	// }
+	// fmt.Println(status)
+
+	if err := config.DB.Preload("Items").First(&order, id).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Record not found!"})
+		return
 	}
 
-	newOrder.Customer_name = customername
-	newItem.Description = description
-	newItem.Item_code, _ = strconv.Atoi(item_code)
-	newItem.Quantity, _ = strconv.Atoi(quantity)
+	c.ShouldBindJSON(&order)
 
-	err = idb.DB.Model(&order).Updates(newOrder).Error
-
-	if err != nil {
-		result = gin.H{
-			"result": "Data Not Found",
-		}
+	if err := config.DB.Session(&gorm.Session{FullSaveAssociations: true}).Save(&order).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Record can't update!"})
+		return
 	}
-	c.JSON(http.StatusOK, result)
+
+	c.JSON(http.StatusOK, order)
 
 }
 
-func (idb *InDB) DeleteOrder(c *gin.Context) {
+func DeleteStudentById(c *gin.Context) {
+	id := c.Params.ByName("id")
 
 	var (
-		// order  structs.Orders
-		item   structs.Items
-		result gin.H
+		item  structs.Item
+		order structs.Order
 	)
 
-	id := c.Param("id")
-	it := idb.DB.Where("item_id = ?", id).First(&item).Error
+	if err := config.DB.Where("Order_id = ?", id).Delete(&item).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Record not found!"})
+	}
 
-	if it != nil {
-		result = gin.H{
-			"Result": "Data Not Found",
-		}
+	if err := config.DB.Where("Order_id = ?", id).Delete(&order).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Record not found!"})
+
 	}
-	it = idb.DB.Delete(&item).Error
-	if it != nil {
-		result = gin.H{
-			"result": "Delete Failed",
-		}
-	} else {
-		result = gin.H{
-			"result": "Success Delete",
-		}
-	}
-	c.JSON(http.StatusOK, result)
+
+	c.JSON(http.StatusOK, gin.H{"id" + id: "is deleted"})
 }
